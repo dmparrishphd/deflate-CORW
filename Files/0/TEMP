@@ -1,0 +1,50 @@
+#REFERENCE: <https://datatracker.ietf.org/doc/html/rfc1951>
+
+def readBinEntire(filepath, blocksize=1024):
+    Bytes, More = bytes(), b'more'
+    with open(filepath, 'rb') as f:
+        while More:
+            More = f.read(blocksize)
+            Bytes += More
+    return Bytes
+
+def _intTo_LEN(u):
+    assert isinstance(u, int)
+    assert 0 <= u
+    assert u <= 65535
+    return u // 256, u % 256
+
+def intToLEN(u):
+    return bytes(_intTo_LEN(u))
+
+def intToNLEN(u):
+    MSB, LSB = _intTo_LEN(u)
+    BSM = ~(MSB - 512) % 256
+    BSL = ~(LSB - 512) % 256
+    return bytes((BSM, BSL))
+
+def blockHead(u):
+    return intToLEN(u) + intToNLEN(u)
+
+def deflate(bytes_, len_=16384):
+    TLEN = len(bytes_)
+    NBLOCKS = bool(TLEN % len_) + TLEN // len_
+    BLOCK_HEAD_INIT = b'\0' + blockHead(TLEN)
+    BLOCK_HEAD_LAST = b'\x80' + blockHead(TLEN % len_)
+    BLOCK_HEADER_SIZE = 5
+    # PREALLOCATE
+    Array = bytearray(BLOCK_HEADER_SIZE * NBLOCKS + TLEN)
+    # ALL BUT LAST BLOCK:---
+    Start_FROM = 0
+    Start_TO   = BLOCK_HEADER_SIZE
+    for k in range(NBLOCKS):
+        End_FROM = Start_FROM + len_
+        End_TO   = Start_TO   + len_
+        Array[Start_TO - BLOCK_HEADER_SIZE:Start_TO] = \
+                BLOCK_HEAD_INIT \
+                if k < NBLOCKS - 1 else \
+                BLOCK_HEAD_LAST
+        Array[Start_TO:End_TO] = bytes_[Start_FROM:End_FROM]
+        Start_FROM += len_
+        Start_TO   += len_ + BLOCK_HEADER_SIZE
+    return Array
